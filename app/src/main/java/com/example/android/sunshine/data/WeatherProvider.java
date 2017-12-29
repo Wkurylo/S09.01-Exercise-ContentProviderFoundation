@@ -18,7 +18,9 @@ package com.example.android.sunshine.data;
 import android.annotation.TargetApi;
 import android.content.ContentProvider;
 import android.content.ContentValues;
+import android.content.UriMatcher;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.support.annotation.NonNull;
 
@@ -34,7 +36,36 @@ import android.support.annotation.NonNull;
  */
 public class WeatherProvider extends ContentProvider {
 
-//  TODO (5) Create static constant integer values named CODE_WEATHER & CODE_WEATHER_WITH_DATE to identify the URIs this ContentProvider can handle
+    //  TODO (5) Create static constant integer values named CODE_WEATHER & CODE_WEATHER_WITH_DATE to identify the URIs this ContentProvider can handle
+    // Define final integer constants for the directory of tasks and a single item.
+    // It's convention to use 100, 200, 300, etc for directories,
+    // and related ints (101, 102, ..) for items in that directory.
+    public static final int CODE_WEATHER = 100;
+    public static final int CODE_WEATHER_WITH_DATE = 101;
+
+    // CDeclare a static variable for the Uri matcher that you construct
+    private static final UriMatcher sUriMatcher = buildUriMatcher();
+
+
+    /**
+     * Initialize a new matcher object without any matches,
+     * then use .addURI(String authority, String path, int match) to add matches
+     */
+    public static UriMatcher buildUriMatcher() {
+
+        // Initialize a UriMatcher with no matches by passing in NO_MATCH to the constructor
+        UriMatcher uriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
+
+        /*
+          All paths added to the UriMatcher have a corresponding int.
+          For each kind of uri you may want to access, add the corresponding match with addURI.
+          The two calls below add matches for the task directory and a single item by ID.
+         */
+        uriMatcher.addURI(WeatherContract.CONTENT_AUTHORITY, WeatherContract.PATH_WEATHER, CODE_WEATHER);
+        uriMatcher.addURI(WeatherContract.CONTENT_AUTHORITY, WeatherContract.PATH_WEATHER + "/#", CODE_WEATHER_WITH_DATE);
+
+        return uriMatcher;
+    }
 
 //  TODO (7) Instantiate a static UriMatcher using the buildUriMatcher method
 
@@ -42,13 +73,13 @@ public class WeatherProvider extends ContentProvider {
 
 //  TODO (6) Write a method called buildUriMatcher where you match URI's to their numeric ID
 
-//  completed (1) Implement onCreate
+//  TODO (1) Implement onCreate
     @Override
     public boolean onCreate() {
-//      completed (2) Within onCreate, instantiate our mOpenHelper
+//      TODO (2) Within onCreate, instantiate our mOpenHelper
         mOpenHelper = new WeatherDbHelper(getContext());
 
-//      completed (3) Return true from onCreate to signify success performing setup
+//      TODO (3) Return true from onCreate to signify success performing setup
         return true;
     }
 
@@ -89,7 +120,81 @@ public class WeatherProvider extends ContentProvider {
     @Override
     public Cursor query(@NonNull Uri uri, String[] projection, String selection,
                         String[] selectionArgs, String sortOrder) {
-        throw new RuntimeException("Student, implement the query method!");
+
+        SQLiteDatabase db = mOpenHelper.getReadableDatabase();
+
+        Cursor returnData;
+        int matcher = sUriMatcher.match(uri);
+
+        switch (matcher)
+        {
+            /*
++             * When sUriMatcher's match method is called with a URI that looks EXACTLY like this
++             *
++             *      content://com.example.android.sunshine/weather/
++             *
++             * sUriMatcher's match method will return the code that indicates to us that we need
++             * to return all of the weather in our weather table.
++             *
++             * In this case, we want to return a cursor that contains every row of weather data
++             * in our weather table.
++             */
+            case CODE_WEATHER:
+                returnData = db.query(WeatherContract.WeatherEntry.TABLE_NAME,
+                        projection,
+                        selection,
+                        selectionArgs,
+                        null,
+                        null,
+                        sortOrder);
+                break;
+
+                /*
++             * When sUriMatcher's match method is called with a URI that looks something like this
++             *
++             *      content://com.example.android.sunshine/weather/1472214172
++             *
++             * sUriMatcher's match method will return the code that indicates to us that we need
++             * to return the weather for a particular date. The date in this code is encoded in
++             * milliseconds and is at the very end of the URI (1472214172) and can be accessed
++             * programmatically using Uri's getLastPathSegment method.
++             *
++             * In this case, we want to return a cursor that contains one row of weather data for
++             * a particular date.
++             */
+            case CODE_WEATHER_WITH_DATE:
+
+                /*
++                 * In order to determine the date associated with this URI, we look at the last
++                 * path segment. In the comment above, the last path segment is 1472214172 and
++                 * represents the number of seconds since the epoch, or UTC time.
++                 */
+                String dataString = uri.getLastPathSegment();
+                 /*
++                 * The query method accepts a string array of arguments, as there may be more
++                 * than one "?" in the selection statement. Even though in our case, we only have
++                 * one "?", we have to create a string array that only contains one element
++                 * because this method signature accepts a string array.
++                 */
+                String[] selectionArguments = new String[]{dataString};
+
+                returnData = db.query(WeatherContract.WeatherEntry.TABLE_NAME,
+                        projection,
+                        WeatherContract.WeatherEntry.COLUMN_DATE + "=?",
+                        selectionArguments,
+                        null,
+                        null,
+                        sortOrder);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown uri: " + uri);
+        }
+
+        // Set a notification URI on the Cursor and return that Cursor
+        returnData.setNotificationUri(getContext().getContentResolver(), uri);
+
+        // Return the desired Cursor
+        return returnData;
 
 //      TODO (9) Handle queries on both the weather and weather with date URI
 
